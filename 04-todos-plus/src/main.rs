@@ -1,15 +1,19 @@
 use iced::widget::{button, checkbox, column, container, row, space, text, text_input};
-use iced::{Center, Element, Fill};
-use std::mem;
+use iced::{Center, Element, Fill, Task};
+use serde::{Deserialize, Serialize};
+use std::{mem, result};
+use tokio::fs;
 
-#[derive(Default, Clone, PartialEq)]
+type Result<T> = result::Result<T, String>;
+
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 enum ItemState {
     #[default]
     Idle,
     Editing(String),
 }
 
-#[derive(Default)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 struct Item {
     text: String,
     done: bool,
@@ -50,6 +54,22 @@ impl Item {
     }
 }
 
+const SAVED_TODOS: &str = "/tmp/todos.json";
+
+async fn load_todos() -> Result<Vec<Item>> {
+    let bytes = fs::read(SAVED_TODOS).await.map_err(|e| format!("{e}"))?;
+
+    serde_json::from_slice(&bytes).map_err(|e| format!("{e}"))
+}
+
+async fn save_todos(todos: Vec<Item>) -> Result<()> {
+    let bytes = serde_json::to_string(&todos).map_err(|e| format!("{e}"))?;
+
+    fs::write(SAVED_TODOS, bytes)
+        .await
+        .map_err(|e| format!("{e}"))
+}
+
 #[derive(Default)]
 struct State {
     input: String,
@@ -70,36 +90,66 @@ enum Message {
     Toggle(usize),
     Delete(usize),
     Edit(usize, Edit),
+    Load,
+    Loaded(Result<Vec<Item>>),
+    Save,
+    Saved(Result<()>),
 }
 
 impl State {
-    fn update(&mut self, message: Message) {
+    fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::InputChanged(s) => {
                 self.input = s;
+                Task::none()
             }
             Message::Add => {
                 let mut item = Item::default();
                 mem::swap(&mut item.text, &mut self.input);
                 self.todos.push(item);
+                Task::none()
             }
             Message::Toggle(i) => {
                 if let Some(item) = self.todos.get_mut(i) {
                     item.toggle()
                 }
+                Task::none()
             }
             Message::Delete(i) => {
                 self.todos.remove(i);
+                Task::none()
             }
             Message::Edit(i, msg) => {
                 if let Some(item) = self.todos.get_mut(i) {
                     item.update(msg);
                 }
+                Task::none()
+            }
+            Message::Load => Task::perform(load_todos(), Message::Loaded),
+            Message::Loaded(items) => {
+                match items {
+                    Ok(items) => self.todos = items,
+                    Err(e) => eprintln!("couldn't load: {e}"),
+                }
+                Task::none()
+            }
+            Message::Save => Task::perform(save_todos(self.todos.clone()), Message::Saved),
+            Message::Saved(status) => {
+                match status {
+                    Ok(_) => {}
+                    Err(e) => eprintln!("couldn't save: {e}"),
+                }
+                Task::none()
             }
         }
     }
 
     fn view(&self) -> Element<'_, Message> {
+        let load = button("Load").on_press(Message::Load);
+        let save = button("Save").on_press_maybe((!self.todos.is_empty()).then_some(Message::Save));
+
+        let header = row![load, save].spacing(3).padding(7);
+
         let input = text_input("New todo", &self.input)
             .on_input(Message::InputChanged)
             .on_submit(Message::Add);
@@ -130,7 +180,7 @@ impl State {
             .height(Fill)
             .style(container::bordered_box);
 
-        let frame = container(panel)
+        let frame = container(column![header, panel])
             .padding(14)
             .width(Fill)
             .height(Fill)
