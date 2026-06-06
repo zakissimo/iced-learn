@@ -1,0 +1,14 @@
+[package]
+name = "quran-reader"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+iced = { version = "0.14", features = ["tokio"] }
+rusqlite = { version = "0.32", features = ["bundled"] }
+anyhow = "1"
+regex = "1"
+
+[[bin]]
+name = "import"
+path = "src/bin/import.rs"
