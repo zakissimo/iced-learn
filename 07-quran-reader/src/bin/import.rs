@@ -11,7 +11,7 @@ fn main() -> Result<()> {
     conn.execute(
         "CREATE TABLE verses (
             id    INTEGER PRIMARY KEY,
-            sura  INTEGER NOT NULL,
+            surah INTEGER NOT NULL,
             ayah  INTEGER NOT NULL,
             body  TEXT    NOT NULL
         );",
@@ -20,8 +20,8 @@ fn main() -> Result<()> {
 
     let tx = conn.transaction()?;
 
-    let mut stmt = tx.prepare("INSERT INTO verses (sura, ayah, body) VALUES (?1, ?2, ?3);")?;
-    let re = Regex::new(r"\((\d+),\s*(\d+),\s*(\d+),\s*'(.*)'\)").unwrap();
+    let mut stmt = tx.prepare("INSERT INTO verses (surah, ayah, body) VALUES (?1, ?2, ?3);")?;
+    let re = Regex::new(r"\((\d+),\s*(\d+),\s*(\d+),\s*'(.*)'\)")?;
     let data = std::fs::read_to_string(DUMP_FILE)?;
 
     for line in data.lines() {
@@ -30,10 +30,10 @@ fn main() -> Result<()> {
         }
 
         if let Some(cap) = re.captures(line) {
-            let (_, [_idx, sura, ayah, body]) = cap.extract();
-            let sura: i64 = sura.parse()?;
+            let (_, [_idx, surah, ayah, body]) = cap.extract();
+            let surah: i64 = surah.parse()?;
             let ayah: i64 = ayah.parse()?;
-            stmt.execute(params![sura, ayah, body])?;
+            stmt.execute(params![surah, ayah, body])?;
         }
     }
 
