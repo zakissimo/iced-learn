@@ -2,5 +2,5 @@ target/
 **/*.rs.bk
 *.pdb
 
-# Generated SQLite database — regenerate with: cargo run --bin import -- assets/data/quran-uthmani.sql
-07-quran-reader/assets/data/quran.db
+# Generated SQLite databases — regenerate with: cargo run --bin import
+*.db
